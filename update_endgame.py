@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import shutil
 import string
@@ -63,6 +64,14 @@ def download_file(url: str, destination: Path) -> None:
         destination.open("wb") as output,
     ):
         shutil.copyfileobj(response, output)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def is_uf2_drive(path: Path) -> bool:
@@ -141,6 +150,8 @@ def main() -> int:
     asset = pick_asset(release, is_3395)
     asset_name = asset["name"]
     asset_url = asset["browser_download_url"]
+    asset_digest = asset.get("digest", "")
+    expected_hash = asset_digest.removeprefix("sha256:") if asset_digest else None
     tag = release.get("tag_name", "unknown")
 
     print(f"Release: {tag}")
@@ -150,6 +161,13 @@ def main() -> int:
         firmware_path = Path(temp_dir) / asset_name
         print("Downloading firmware...")
         download_file(asset_url, firmware_path)
+
+        if not expected_hash:
+            raise RuntimeError("Release asset does not include a SHA-256 digest")
+
+        print("Verifying firmware...")
+        if sha256_file(firmware_path) != expected_hash:
+            raise RuntimeError("Downloaded firmware hash mismatch")
 
         drive = wait_for_uf2_drive()
         target_path = drive / asset_name
