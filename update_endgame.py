@@ -132,47 +132,65 @@ def choose_variant() -> bool:
         print("Please enter y or n.")
 
 
-def main() -> int:
+def parse_version_arg() -> Optional[str]:
     if len(sys.argv) > 2:
         name = Path(sys.argv[0]).name
         print(f"Usage: {name} [version]", file=sys.stderr)
         print(f"Example: {name} 0.5.12", file=sys.stderr)
-        return 1
+        raise SystemExit(1)
+    return sys.argv[1] if len(sys.argv) == 2 else None
 
-    version = sys.argv[1] if len(sys.argv) == 2 else None
-    is_3395 = choose_variant()
 
+def select_firmware(version: Optional[str], is_3395: bool) -> tuple[dict, dict]:
     if version:
         print(f"Checking firmware release {version}...")
     else:
         print("Checking latest firmware release...")
+
     release = get_release(version)
     asset = pick_asset(release, is_3395)
-    asset_name = asset["name"]
-    asset_url = asset["browser_download_url"]
-    asset_digest = asset.get("digest", "")
-    expected_hash = asset_digest.removeprefix("sha256:") if asset_digest else None
-    tag = release.get("tag_name", "unknown")
+    return release, asset
 
-    print(f"Release: {tag}")
-    print(f"Selected firmware: {asset_name}")
+
+def get_expected_hash(asset: dict) -> str:
+    digest = asset.get("digest", "")
+    expected_hash = digest.removeprefix("sha256:")
+    if not expected_hash:
+        raise RuntimeError("Release asset does not include a SHA-256 digest")
+    return expected_hash
+
+
+def download_and_verify_firmware(asset: dict, temp_dir: str) -> Path:
+    firmware_path = Path(temp_dir) / asset["name"]
+
+    print("Downloading firmware...")
+    download_file(asset["browser_download_url"], firmware_path)
+
+    print("Verifying firmware...")
+    if sha256_file(firmware_path) != get_expected_hash(asset):
+        raise RuntimeError("Downloaded firmware hash mismatch")
+
+    return firmware_path
+
+
+def copy_firmware_to_device(firmware_path: Path) -> None:
+    drive = wait_for_uf2_drive()
+    target_path = drive / firmware_path.name
+    print(f"Copying firmware to {drive}...")
+    shutil.copyfile(firmware_path, target_path)
+
+
+def main() -> int:
+    version = parse_version_arg()
+    is_3395 = choose_variant()
+    release, asset = select_firmware(version, is_3395)
+
+    print(f"Release: {release.get('tag_name', 'unknown')}")
+    print(f"Selected firmware: {asset['name']}")
 
     with tempfile.TemporaryDirectory(prefix="endgame-fw-") as temp_dir:
-        firmware_path = Path(temp_dir) / asset_name
-        print("Downloading firmware...")
-        download_file(asset_url, firmware_path)
-
-        if not expected_hash:
-            raise RuntimeError("Release asset does not include a SHA-256 digest")
-
-        print("Verifying firmware...")
-        if sha256_file(firmware_path) != expected_hash:
-            raise RuntimeError("Downloaded firmware hash mismatch")
-
-        drive = wait_for_uf2_drive()
-        target_path = drive / asset_name
-        print(f"Copying firmware to {drive}...")
-        shutil.copyfile(firmware_path, target_path)
+        firmware_path = download_and_verify_firmware(asset, temp_dir)
+        copy_firmware_to_device(firmware_path)
 
     print("Done. The device should reboot after the copy finishes.")
     return 0
