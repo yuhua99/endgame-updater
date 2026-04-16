@@ -10,24 +10,33 @@ This repository contains a small Python script that downloads the latest firmwar
 
 ## Usage
 
-Run the script with Python:
+Install the latest release:
 
 ```bash
 python3 update_endgame.py
 ```
 
-If you need the PAW3395 firmware variant, pass `3395` as an argument:
+Install a specific release version:
 
 ```bash
-python3 update_endgame.py 3395
+python3 update_endgame.py 0.5.12
 ```
+
+The script will ask:
+
+```text
+Use 3395 version? [y/N]
+```
+
+Press `y` for the PAW3395 firmware, or press Enter for the normal firmware.
 
 ## How it works
 
-1. Checks the latest release from `efogtech/endgame-trackball-config`
-2. Downloads the matching `.uf2` firmware file
-3. Waits for the trackball to appear in bootloader mode
-4. Copies the firmware onto the UF2 drive
+1. Checks the latest release, or the requested version, from `efogtech/endgame-trackball-config`
+2. Prompts for normal or PAW3395 firmware
+3. Downloads the matching `.uf2` firmware file
+4. Waits for the trackball to appear in bootloader mode
+5. Copies the firmware onto the UF2 drive
 
 ## Updating the device
 
@@ -38,6 +47,7 @@ python3 update_endgame.py 3395
 
 ## Notes
 
-- The default command installs the normal firmware
-- The `3395` argument installs the PAW3395 firmware
+- Version arguments should be plain versions like `0.5.12`
+- The script adds the GitHub release tag prefix internally
+- The default answer to `Use 3395 version? [y/N]` is `No`
 - The script looks for common UF2 mount points on Windows, Linux, and macOS
