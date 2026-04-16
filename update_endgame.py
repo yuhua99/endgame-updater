@@ -6,19 +6,20 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Optional
 from urllib.request import Request, urlopen
 
 
-REPO = "efogtech/endgame-trackball-config"
-API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+REPO_OWNER = "efogtech"
+REPO_NAME = "endgame-trackball-config"
 POLL_SECONDS = 1
 TIMEOUT_SECONDS = 120
 HTTP_TIMEOUT_SECONDS = 30
 
 
-def get_release() -> dict:
+def get_json(url: str) -> dict:
     request = Request(
-        API_URL,
+        url,
         headers={
             "Accept": "application/vnd.github+json",
             "User-Agent": "endgame-trackball-updater",
@@ -28,21 +29,31 @@ def get_release() -> dict:
         return json.load(response)
 
 
+def get_release(version: Optional[str]) -> dict:
+    if version:
+        api_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/tags/endgame-{version}"
+    else:
+        api_url = (
+            f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
+        )
+    return get_json(api_url)
+
+
 def pick_asset(release: dict, is_3395: bool) -> dict:
-    wanted = "endgame-paw3395-" if is_3395 else "endgame-"
-    blocked = "paw3395"
+    prefix = "endgame-paw3395-" if is_3395 else "endgame-"
 
     for asset in release.get("assets", []):
         name = asset.get("name", "")
         if not name.endswith(".uf2"):
             continue
-        if is_3395 and name.startswith(wanted):
-            return asset
-        if not is_3395 and name.startswith(wanted) and blocked not in name:
-            return asset
+        if not name.startswith(prefix):
+            continue
+        if not is_3395 and "paw3395" in name:
+            continue
+        return asset
 
     variant = "3395" if is_3395 else "normal"
-    raise RuntimeError(f"Could not find {variant} firmware in latest release")
+    raise RuntimeError(f"Could not find {variant} firmware in the selected release")
 
 
 def download_file(url: str, destination: Path) -> None:
@@ -102,22 +113,37 @@ def wait_for_uf2_drive() -> Path:
     raise RuntimeError("Timed out waiting for the UF2 drive")
 
 
+def choose_variant() -> bool:
+    while True:
+        answer = input("Use 3395 version? [y/N] ").strip().lower()
+        if answer in {"", "n", "no"}:
+            return False
+        if answer in {"y", "yes"}:
+            return True
+        print("Please enter y or n.")
+
+
 def main() -> int:
-    arg = sys.argv[1] if len(sys.argv) > 1 else ""
-    if arg not in {"", "3395"}:
-        print(f"Usage: {Path(sys.argv[0]).name} [3395]", file=sys.stderr)
+    if len(sys.argv) > 2:
+        name = Path(sys.argv[0]).name
+        print(f"Usage: {name} [version]", file=sys.stderr)
+        print(f"Example: {name} 0.5.12", file=sys.stderr)
         return 1
 
-    is_3395 = arg == "3395"
+    version = sys.argv[1] if len(sys.argv) == 2 else None
+    is_3395 = choose_variant()
 
-    print("Checking latest firmware release...")
-    release = get_release()
+    if version:
+        print(f"Checking firmware release {version}...")
+    else:
+        print("Checking latest firmware release...")
+    release = get_release(version)
     asset = pick_asset(release, is_3395)
     asset_name = asset["name"]
     asset_url = asset["browser_download_url"]
     tag = release.get("tag_name", "unknown")
 
-    print(f"Latest release: {tag}")
+    print(f"Release: {tag}")
     print(f"Selected firmware: {asset_name}")
 
     with tempfile.TemporaryDirectory(prefix="endgame-fw-") as temp_dir:
