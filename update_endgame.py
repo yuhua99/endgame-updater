@@ -16,6 +16,7 @@ REPO_NAME = "endgame-trackball-config"
 POLL_SECONDS = 1
 TIMEOUT_SECONDS = 120
 HTTP_TIMEOUT_SECONDS = 30
+DONGLE_FIRMWARE_URL = "https://efog.tech/storage/dongle-1k-firmware.uf2"
 
 
 def get_json(url: str) -> dict:
@@ -108,8 +109,8 @@ def candidate_mount_points() -> list[Path]:
     return unique
 
 
-def wait_for_uf2_drive() -> Path:
-    print("Put the trackball into reset/bootloader mode now.")
+def wait_for_uf2_drive(device: str = "trackball") -> Path:
+    print(f"Put the {device} into reset/bootloader mode now.")
     print("Waiting for the UF2 drive to appear...")
 
     deadline = time.time() + TIMEOUT_SECONDS
@@ -173,11 +174,21 @@ def download_and_verify_firmware(asset: dict, temp_dir: str) -> Path:
     return firmware_path
 
 
-def copy_firmware_to_device(firmware_path: Path) -> None:
-    drive = wait_for_uf2_drive()
+def copy_firmware_to_device(firmware_path: Path, device: str = "trackball") -> None:
+    drive = wait_for_uf2_drive(device)
     target_path = drive / firmware_path.name
     print(f"Copying firmware to {drive}...")
     shutil.copyfile(firmware_path, target_path)
+
+
+def update_dongle(temp_dir: str) -> None:
+    dongle_path = Path(temp_dir) / "dongle-1k-firmware.uf2"
+
+    print("Downloading dongle firmware...")
+    download_file(DONGLE_FIRMWARE_URL, dongle_path)
+
+    copy_firmware_to_device(dongle_path, device="dongle")
+    print("Dongle firmware updated.")
 
 
 def main() -> int:
@@ -192,7 +203,12 @@ def main() -> int:
         firmware_path = download_and_verify_firmware(asset, temp_dir)
         copy_firmware_to_device(firmware_path)
 
-    print("Done. The device should reboot after the copy finishes.")
+        print("Done. The device should reboot after the copy finishes.")
+
+        answer = input("\nDo you also want to update the dongle firmware? [y/N] ").strip().lower()
+        if answer in {"y", "yes"}:
+            update_dongle(temp_dir)
+
     return 0
 
 
