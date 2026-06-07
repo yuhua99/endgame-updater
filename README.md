@@ -1,6 +1,6 @@
 # Endgame Firmware Updater
 
-This repository contains a small Python script that downloads Endgame trackball firmware from GitHub, verifies its SHA-256 hash, and copies it to the device when it appears as a UF2 drive.
+This repository contains a small Python script that downloads Endgame trackball firmware from GitHub, verifies its SHA-256 hash, and copies it to the device when it appears as a UF2 drive. It can also update the dongle firmware.
 
 ## Requirements
 
@@ -38,6 +38,7 @@ Press `y` for the PAW3395 firmware, or press Enter for the normal firmware.
 4. Verifies the downloaded firmware against the SHA-256 digest published in the GitHub release asset metadata
 5. Waits for the trackball to appear in bootloader mode
 6. Copies the firmware onto the UF2 drive
+7. Optionally downloads and flashes the dongle firmware
 
 ## Updating the device
 
@@ -46,6 +47,8 @@ Press `y` for the PAW3395 firmware, or press Enter for the normal firmware.
 3. Wait for the file copy to finish
 4. The script verifies the firmware hash before copying
 5. The device should reboot automatically
+6. When prompted, choose whether to also update the dongle firmware
+7. If yes, put the dongle into bootloader mode and wait for the copy to finish
 
 ## Notes
 
@@ -54,3 +57,4 @@ Press `y` for the PAW3395 firmware, or press Enter for the normal firmware.
 - The default answer to `Use 3395 version? [y/N]` is `No`
 - The script requires the selected GitHub release asset to include a `sha256:` digest
 - The script looks for common UF2 mount points on Windows, Linux, and macOS
+- Dongle firmware is downloaded from `https://efog.tech/storage/dongle-1k-firmware.uf2`
